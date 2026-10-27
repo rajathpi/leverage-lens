@@ -1,18 +1,36 @@
 {
   "manifest_version": 3,
   "name": "Leverage Lens",
-  "version": "0.1.0",
-  "description": "Adds a small card to Avanza product pages: live leverage, distance to the stop, today's move and the AVA products on a stock.",
-  "permissions": ["storage"],
+  "version": "0.1.1",
+  "description": "A card on Avanza stock, index, mini and BULL/BEAR pages: live leverage, distance to stop and a buy/sell price planner.",
+  "permissions": [
+    "storage"
+  ],
   "content_scripts": [
     {
-      "matches": ["https://www.avanza.se/*"],
-      "js": ["overlay.js"],
+      "matches": [
+        "https://www.avanza.se/*"
+      ],
+      "js": [
+        "overlay.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
-    { "resources": ["fonts/*"], "matches": ["https://www.avanza.se/*"] }
+    {
+      "resources": [
+        "fonts/*"
+      ],
+      "matches": [
+        "https://www.avanza.se/*"
+      ]
+    }
   ],
-  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" }
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  }
 }

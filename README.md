@@ -48,6 +48,10 @@ Everything runs in your browser, on avanza.se only. The card reads the same pric
 
 The mini prices come from how a mini future is priced: `(underlying − financing level) ÷ parity × exchange rate`. The exchange rate comes from the mini's own price right now. The financing level moves up a little every day and currencies move too, so a plan for a level several days out will be a little off.
 
+## Privacy
+
+Leverage Lens collects no data. It has no server and no analytics. Your settings (theme, filters, sort) and the numbers you type into the trade planner are saved only in your own browser, with Chrome's extension storage. It runs on avanza.se and nowhere else, and the only requests it makes go to avanza.se, the same requests Avanza's own page makes.
+
 ## Not affiliated with Avanza
 
 This is an independent hobby project and has nothing to do with Avanza Bank AB. The numbers are worked out from Avanza's public data and can be wrong or late. It is not investment advice. Check the order screen before you trade.
