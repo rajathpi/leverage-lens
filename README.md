@@ -6,9 +6,11 @@ A Chrome extension that adds a small card to Avanza's stock, index, mini future 
 
 ## What it shows
 
-| Mini future | BULL / BEAR | Stock or index |
-|---|---|---|
-| ![Mini future card](screenshots/mini.png) | ![BULL card](screenshots/bull.png) | ![Stock card](screenshots/stock.png) |
+<p align="center">
+  <img src="screenshots/mini.png" alt="Mini future card" width="290">
+  <img src="screenshots/bull.png" alt="BULL card" width="290">
+  <img src="screenshots/stock.png" alt="Stock card" width="290">
+</p>
 
 **On a mini future or turbo**
 - Leverage right now, worked out from the live price, and what 1 % in the underlying does to the mini
@@ -28,7 +30,10 @@ A Chrome extension that adds a small card to Avanza's stock, index, mini future 
 
 It refreshes every 30 seconds. When you're logged in to Avanza with real-time prices, the card is real-time too. Otherwise quotes are 15 minutes delayed and the card says so. A slider switches between light and dark, and the minus button tucks the card away.
 
-![Dark theme](screenshots/stock-dark.png)
+<p align="center">
+  <img src="screenshots/gold.png" alt="Guld index card" width="290">
+  <img src="screenshots/stock-dark.png" alt="Dark theme" width="290">
+</p>
 
 ## Install
 
