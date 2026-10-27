@@ -304,7 +304,9 @@
     const uMove = u.previousClosingPrice && spot ? (spot / u.previousClosingPrice - 1) * 100 : uq.changePercent;
     const expected = (long ? 1 : -1) * L * uMove;
     const mmClose = d.historicalClosingPrices && d.historicalClosingPrices.marketMaker && d.historicalClosingPrices.marketMaker.oneDay;
-    const now = mid(q.marketMakerQuote ? { buy: q.marketMakerQuote.currentBuyPrice, sell: q.marketMakerQuote.currentSellPrice } : q);
+    // The market maker's live quote is empty outside trading hours; fall back to the plain bid/ask then.
+    const mm = q.marketMakerQuote;
+    const now = mid(mm && mm.currentBuyPrice && mm.currentSellPrice ? { buy: mm.currentBuyPrice, sell: mm.currentSellPrice } : q);
     const actual = mmClose && now ? (now / mmClose - 1) * 100 : null;
     const h = d.historicalClosingPrices || {};
     const perf = (p) => (p && now ? pct((now / p - 1) * 100, 0) : '–');

@@ -42,6 +42,8 @@ It refreshes every 30 seconds. When you're logged in to Avanza with real-time pr
 3. Turn on **Developer mode**, click **Load unpacked** and pick the unzipped folder (the one with `manifest.json` in it).
 4. Open any stock or mini on avanza.se. The card shows up in the bottom-right corner.
 
+**Firefox** (128 or newer): open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on** and pick `manifest.json` in the unzipped folder. Firefox removes temporary add-ons when it restarts, so you load it again after a restart until it's on addons.mozilla.org.
+
 ## How it works
 
 Everything runs in your browser, on avanza.se only. The card reads the same price data that Avanza's own page loads, from Avanza's site, and it needs no permissions apart from saving your settings. It never places orders, never logs in for you and sends nothing anywhere else.
