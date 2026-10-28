@@ -34,6 +34,10 @@ It refreshes every 30 seconds. When you're logged in to Avanza with real-time pr
 
 ## Install
 
+**Microsoft Edge:** [Get Leverage Lens from Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/leverage-lens/fodmhlghajfckdhledfoemndmkcamdem), one click.
+
+Firefox and Opera listings are in review. Until then, or in Chrome and Brave, install it by hand:
+
 1. Download this repo: **Code → Download ZIP**, then unzip it. Or grab `leverage-lens.zip` from [Releases](../../releases).
 2. Open `chrome://extensions` (Edge: `edge://extensions`, Brave: `brave://extensions`).
 3. Turn on **Developer mode**, click **Load unpacked** and pick the unzipped folder (the one with `manifest.json` in it).
