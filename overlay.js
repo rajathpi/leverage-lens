@@ -3,7 +3,8 @@
 (() => {
   if (window.top !== window) return;
 
-  const PAGE_RE = /\/(om-warranten|om-certifikatet|om-aktien|om-indexet)\.html\/(\d+)/;
+  // Product pages, plus the buy/sell order page (/handla/order.html/kop/<id>), so the numbers stay in view while ordering.
+  const PAGE_RE = /\/(om-warranten|om-certifikatet|om-aktien|om-indexet)\.html\/(\d+)|\/handla\/(order)\.html\/(?:kop|salj)\/(\d+)/;
   const REFRESH_MS = 30000;
   const nf = (d) => new Intl.NumberFormat('sv-SE', { minimumFractionDigits: d, maximumFractionDigits: d });
   const num = (v, d = 2) => (v == null || !isFinite(v) ? '–' : nf(d).format(v));
@@ -117,7 +118,8 @@
   // ----- page tracking (Avanza is a single-page app) -----
   let current = null, timer = null, view = {}, last = null, seq = 0;
   function check() {
-    const m = location.pathname.match(PAGE_RE);
+    const r = location.pathname.match(PAGE_RE);
+    const m = r && (r[1] ? [r[0], r[1], r[2]] : [r[0], r[3], r[4]]);
     const key = m ? m[1] + ':' + m[2] : null;
     if (key === current) return;
     current = key;
@@ -141,7 +143,13 @@
     body.classList.add('busy');
     try {
       let data;
-      if (view.kind === 'om-warranten') data = await loadProduct('warrant');
+      // The order page doesn't say what it is: try a mini/turbo, then a certificate, else treat it as a stock.
+      if (view.kind === 'order') {
+        for (const type of ['warrant', 'certificate']) {
+          try { data = await loadProduct(type); break; } catch (e) {}
+        }
+        if (!data) data = await loadStock();
+      } else if (view.kind === 'om-warranten') data = await loadProduct('warrant');
       else if (view.kind === 'om-certifikatet') data = await loadProduct('certificate');
       else data = await loadStock();
       if (key !== current || mine !== seq) return;
