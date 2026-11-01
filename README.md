@@ -53,7 +53,7 @@ The mini prices come from how a mini future is priced: `(underlying − financin
 
 ## Privacy
 
-Leverage Lens collects no data. It has no server and no analytics. Your settings (theme, filters, sort) and the numbers you type into the trade planner are saved only in your own browser, with Chrome's extension storage. It runs on avanza.se and nowhere else, and the only requests it makes go to avanza.se, the same requests Avanza's own page makes.
+Leverage Lens collects no data. It has no server and no analytics. Your settings (theme, filters, sort) and the numbers you type into the trade planner are saved only in your own browser, with Chrome's extension storage. It runs on avanza.se and nowhere else. Its requests go to avanza.se (the same requests Avanza's own page makes) and, on crypto tracker pages only, to Binance's public price API for the coin's price. Nothing about you is sent.
 
 ## Not affiliated with Avanza
 

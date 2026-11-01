@@ -166,7 +166,23 @@
   async function loadProduct(type) {
     const d = await get(`market-guide/${type}/${view.id}`);
     const chart = d.underlying && d.underlying.orderbookId ? await todayChart(d.underlying) : null;
-    return { type, d, chart };
+    // Crypto trackers have no underlying on Avanza; the coin's ticker sits in the category, e.g. "THORChain (RUNE)".
+    const sym = !(d.underlying && d.underlying.orderbookId) && /\(([A-Z0-9]{2,10})\)/.exec(d.subCategory || '');
+    const crypto = sym && d.quote ? await loadCrypto(sym[1], d.quote.updated || d.quote.timeOfLast).catch(() => null) : null;
+    return { type, d, chart, crypto };
+  }
+
+  // Binance's public API: the live price, and the price in the minute of the tracker's last quote,
+  // so a tracker priced only in Avanza's trading hours can be compared with a coin that trades all week.
+  async function loadCrypto(sym, at) {
+    const pair = sym + 'USDT', api = 'https://api.binance.com/api/v3/';
+    const [live, kl] = await Promise.all([
+      fetch(`${api}ticker/price?symbol=${pair}`, { credentials: 'omit' }).then((r) => (r.ok ? r.json() : null)),
+      at ? fetch(`${api}klines?symbol=${pair}&interval=1m&startTime=${at - 60000}&limit=2`, { credentials: 'omit' }).then((r) => (r.ok ? r.json() : null)) : null,
+    ]);
+    const now = live && +live.price;
+    const then = kl && kl.length ? +kl[kl.length - 1][4] : null;
+    return now ? { sym, pair: sym + '/USDT', now, then: then || now } : null;
   }
 
   async function loadStock() {
@@ -256,7 +272,7 @@
           const el = calc.querySelector(`[data-k="${f}"]`), x = parse(el.value);
           if (x == null) continue;
           const v = b.dataset.unit === 'p' ? priceAt(x) + sign * model.half : levelAt(x - sign * model.half);
-          el.value = String(+v.toFixed(b.dataset.unit === 'p' && v < 1 ? 3 : 2));
+          el.value = String(+v.toFixed(b.dataset.unit === 'p' ? (v < 1 ? 3 : 2) : lvlDec(v)));
         }
         calc.unit = b.dataset.unit;
         calc.dispatchEvent(new Event('input'));
@@ -266,15 +282,18 @@
     updateCalc();
   }
   const parse = (s) => { const x = parseFloat(String(s || '').replace(/\s/g, '').replace(',', '.')); return isFinite(x) ? x : null; };
-  const priceAt = (u) => Math.max(0, (model.long ? u - model.fin : model.fin - u) / model.parity * model.fx);
-  const levelAt = (p) => (model.long ? model.fin + (p * model.parity) / model.fx : model.fin - (p * model.parity) / model.fx);
-  const stopped = (u) => (model.long ? u <= model.stop : u >= model.stop);
+  // A mini: price = |level − financing| / parity × fx. A 1× tracker: price = k × level, no stop.
+  const priceAt = (u) => (model.k ? u * model.k : Math.max(0, (model.long ? u - model.fin : model.fin - u) / model.parity * model.fx));
+  const levelAt = (p) => (model.k ? p / model.k : model.long ? model.fin + (p * model.parity) / model.fx : model.fin - (p * model.parity) / model.fx);
+  const stopped = (u) => (model.k ? false : model.long ? u <= model.stop : u >= model.stop);
+  const lvlDec = (v) => (v < 1 ? 4 : v < 100 ? 3 : 2);
   function updateCalc() {
     if (!model) return;
     const m = model, unitU = calc.unit === 'u';
     calc.querySelectorAll('[data-unit]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.unit === calc.unit)));
     calc.querySelector('[data-unit="u"]').textContent = m.ticker;
-    for (const f of ['buy', 'sell']) calc.querySelector(`[data-k="${f}"]`).placeholder = unitU ? `${m.ticker} level` : 'Mini price';
+    calc.querySelector('[data-unit="p"]').textContent = 'SEK';
+    for (const f of ['buy', 'sell']) calc.querySelector(`[data-k="${f}"]`).placeholder = unitU ? `${m.ticker} ${m.k ? 'price' : 'level'}` : m.k ? 'Tracker price' : 'Mini price';
     const out = (f, html) => { calc.querySelector(`[data-o="${f}"]`).innerHTML = html; };
     // Buying pays the ask, selling gets the bid: half the spread either side of the model price.
     const side = (f, sign) => {
@@ -286,7 +305,7 @@
       const move = ((u - m.spot) / m.spot) * 100;
       out(f, unitU
         ? `<b>${num(p, p < 1 ? 3 : 2)}</b> SEK <span class="muted">${pct(move, 1)}</span>`
-        : `<b>${num(u, 2)}</b> ${esc(m.ticker)} <span class="muted">${pct(move, 1)}</span>`);
+        : `<b>${num(u, lvlDec(u))}</b> ${esc(m.ticker)} <span class="muted">${pct(move, 1)}</span>`);
       return { u, p };
     };
     const b = side('buy', +1), s = side('sell', -1);
@@ -299,12 +318,14 @@
       res.innerHTML = `Result <b class="${r >= 0 ? 'green' : 'red'}">${pct(r * 100, 1)}</b>${sek != null ? ` · <b class="${sek >= 0 ? 'green' : 'red'}">${sek >= 0 ? '+' : ''}${num(sek, 0)} SEK</b>` : ''}`;
     } else {
       out('amount', '');
-      res.textContent = `Type a ${unitU ? m.ticker + ' level' : 'mini price'}. Buy is at the ask, sell at the bid, today's financing level.`;
+      res.textContent = m.k
+        ? `Type a ${unitU ? m.ticker + ' price in USD' : 'tracker price'}. Buy is at the ask, sell at the bid. Assumes the tracker follows ${m.ticker} 1:1; USD/SEK moves and fees aren't included.`
+        : `Type a ${unitU ? m.ticker + ' level' : 'mini price'}. Buy is at the ask, sell at the bid, today's financing level.`;
     }
   }
 
   // ----- BULL / BEAR daily reset -----
-  function drawCert({ d, chart }) {
+  function drawCert({ d, chart, crypto }) {
     const k = d.keyIndicators || {}, u = d.underlying || {}, uq = u.quote || {}, q = d.quote || {};
     const long = !/^BEAR\b/i.test(d.name);
     const L = k.leverage || 1;
@@ -314,7 +335,8 @@
     // Some products (crypto trackers, other issuers) have no underlying in Avanza's data and no
     // market-maker history: name the asset from its category and use the plain previous close.
     const hasUnder = !!u.orderbookId;
-    const uName = hasUnder ? shortName(u) : d.subCategory || 'underlying';
+    const tick = /\(([A-Z0-9]{2,10})\)/.exec(d.subCategory || '');
+    const uName = hasUnder ? shortName(u) : (tick && tick[1]) || d.subCategory || 'underlying';
     const mmClose = (d.historicalClosingPrices && d.historicalClosingPrices.marketMaker && d.historicalClosingPrices.marketMaker.oneDay)
       || (d.historicalClosingPrices && d.historicalClosingPrices.oneDay);
     // The market maker's live quote is empty outside trading hours; fall back to the plain bid/ask then.
@@ -323,9 +345,19 @@
     const actual = mmClose && now ? (now / mmClose - 1) * 100 : null;
     const h = d.historicalClosingPrices || {};
     const perf = (p) => (p && now ? pct((now / p - 1) * 100, 0) : '–');
+    // A 1× crypto tracker follows the coin: k = tracker price / coin price at the time of the quote.
+    // "Worth now" applies the coin's move since then, which matters on evenings and weekends.
+    const coin = crypto && L === 1 && now ? crypto : null;
+    const kc = coin ? now / coin.then : null;
+    const worth = coin ? kc * coin.now : null;
+    const drift = coin ? (coin.now / coin.then - 1) * 100 : null;
     body.innerHTML = `
       ${head(d, long ? 'Long' : 'Short', L === 1 ? 'Tracker' : 'Daily reset')}
       ${hasUnder ? underlyingRow(u, spot, chart) : ''}
+      ${coin ? `<div class="under">
+        <div class="row"><span>${esc(coin.pair)} <span class="muted small">live, Binance</span></span><span><b>${num(coin.now, lvlDec(coin.now))}</b> USD</span></div>
+        <div class="row small"><span class="muted">Tracker worth now</span><span><b>${num(worth, worth < 1 ? 3 : 2)}</b> SEK <span class="${drift >= 0 ? 'green' : 'red'}" title="RUNE's move since the tracker's last quote">${pct(drift, 1)}</span></span></div>
+      </div>` : ''}
       <dl class="grid">
         <div><dt>Leverage</dt><dd class="big">${num(L, L % 1 ? 1 : 0)}×</dd></div>
         <div><dt>1 % in ${esc(uName)}</dt><dd class="big">${pct((long ? 1 : -1) * L, 1)}</dd></div>
@@ -343,6 +375,10 @@
       </dl>
       ${quoteRow(q)}`;
     footer(q, uq);
+    const half = q.buy && q.sell ? (q.sell - q.buy) / 2 : 0;
+    if (coin) showCalc({ id: d.orderbookId, long: true, k: kc, spot: coin.now, half, ticker: coin.sym });
+    // Any other 1× tracker with a quoted underlying (e.g. Valour Bitcoin on BTC/USD): plan in the underlying's price.
+    else if (L === 1 && long && hasUnder && spot && now) showCalc({ id: d.orderbookId, long: true, k: now / spot, spot, half, ticker: uName });
   }
 
   // ----- stock page: AVA products on it -----
@@ -470,7 +506,11 @@
     const t = new Date().toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
     foot.textContent = `${delayed ? 'Quotes 15 min delayed. ' : ''}Updated ${t}.`;
   }
-  const shortName = (u) => (u && u.listing && u.listing.tickerSymbol) || (u && u.name) || 'underlying';
+  // Tickers like "XXR-BTCUSD-SPOT" read badly; use the name ("BTC/USD") then.
+  const shortName = (u) => {
+    const t = u && u.listing && u.listing.tickerSymbol;
+    return (t && !/-.*-/.test(t) ? t : u && u.name) || t || 'underlying';
+  };
   const subTypeName = (s) => ({ MINI_FUTURE: 'Mini future', KNOCK_OUT: 'Knock-out', TURBO: 'Turbo' })[s] || 'Warrant';
 
   function CSS() {
