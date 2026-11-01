@@ -5,6 +5,7 @@ Newest version first. Each version is also on the [Releases](../../releases) pag
 ## Not released yet
 
 - The card now also shows on Avanza's buy and sell order page, so your numbers and your planned buy/sell prices stay in view while you place the order.
+- Fixed: certificates without an underlying in Avanza's data (crypto trackers such as Valour THORChain) showed dashes. They now show the asset's name, "Bid vs last close" and the number of owners on Avanza.
 
 ## 0.1.2 — 27 Oct 2026
 

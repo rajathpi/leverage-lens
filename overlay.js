@@ -311,7 +311,12 @@
     const spot = mid(uq);
     const uMove = u.previousClosingPrice && spot ? (spot / u.previousClosingPrice - 1) * 100 : uq.changePercent;
     const expected = (long ? 1 : -1) * L * uMove;
-    const mmClose = d.historicalClosingPrices && d.historicalClosingPrices.marketMaker && d.historicalClosingPrices.marketMaker.oneDay;
+    // Some products (crypto trackers, other issuers) have no underlying in Avanza's data and no
+    // market-maker history: name the asset from its category and use the plain previous close.
+    const hasUnder = !!u.orderbookId;
+    const uName = hasUnder ? shortName(u) : d.subCategory || 'underlying';
+    const mmClose = (d.historicalClosingPrices && d.historicalClosingPrices.marketMaker && d.historicalClosingPrices.marketMaker.oneDay)
+      || (d.historicalClosingPrices && d.historicalClosingPrices.oneDay);
     // The market maker's live quote is empty outside trading hours; fall back to the plain bid/ask then.
     const mm = q.marketMakerQuote;
     const now = mid(mm && mm.currentBuyPrice && mm.currentSellPrice ? { buy: mm.currentBuyPrice, sell: mm.currentSellPrice } : q);
@@ -320,14 +325,16 @@
     const perf = (p) => (p && now ? pct((now / p - 1) * 100, 0) : '–');
     body.innerHTML = `
       ${head(d, long ? 'Long' : 'Short', L === 1 ? 'Tracker' : 'Daily reset')}
-      ${u.orderbookId ? underlyingRow(u, spot, chart) : ''}
+      ${hasUnder ? underlyingRow(u, spot, chart) : ''}
       <dl class="grid">
         <div><dt>Leverage</dt><dd class="big">${num(L, L % 1 ? 1 : 0)}×</dd></div>
-        <div><dt>1 % in ${esc(shortName(u))}</dt><dd class="big">${pct((long ? 1 : -1) * L, 1)}</dd></div>
-        <div><dt>${esc(shortName(u))} today ×${num(L, L % 1 ? 1 : 0)}</dt><dd>${pct(expected, 1)}</dd></div>
+        <div><dt>1 % in ${esc(uName)}</dt><dd class="big">${pct((long ? 1 : -1) * L, 1)}</dd></div>
+        ${hasUnder
+          ? `<div><dt>${esc(uName)} today ×${num(L, L % 1 ? 1 : 0)}</dt><dd>${pct(expected, 1)}</dd></div>`
+          : `<div><dt>Owners on Avanza</dt><dd>${num(k.numberOfOwners, 0)}</dd></div>`}
         <div><dt>Bid vs last close</dt><dd>${pct(actual, 1)}</dd></div>
       </dl>
-      ${L > 1 ? `<p class="muted note">Resets every day, so over weeks it drifts away from ${num(L, 0)}× the ${esc(shortName(u))} move. Worthless if ${esc(shortName(u))} ${long ? 'falls' : 'rises'} ${num(100 / L, 0)} % in one day.</p>` : ''}
+      ${L > 1 ? `<p class="muted note">Resets every day, so over weeks it drifts away from ${num(L, 0)}× the ${esc(uName)} move. Worthless if ${esc(uName)} ${long ? 'falls' : 'rises'} ${num(100 / L, 0)} % in one day.</p>` : ''}
       <dl class="grid perf">
         <div><dt>1 week</dt><dd>${perf(h.oneWeek)}</dd></div>
         <div><dt>1 month</dt><dd>${perf(h.oneMonth)}</dd></div>
