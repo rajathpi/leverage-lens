@@ -137,22 +137,26 @@
   }
   setInterval(check, 700);
   check();
+  // The 30 s refresh skips hidden tabs, so catch up the moment the tab is back.
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && current && load(current));
 
   async function load(key) {
     const mine = ++seq;
     body.classList.add('busy');
     try {
-      let data;
+      let data, found;
       // The order page doesn't say what it is: try a mini/turbo, then a certificate, else treat it as a stock.
+      // What worked is kept in view.kind, so later refreshes ask once.
       if (view.kind === 'order') {
-        for (const type of ['warrant', 'certificate']) {
-          try { data = await loadProduct(type); break; } catch (e) {}
+        for (const [type, kind] of [['warrant', 'om-warranten'], ['certificate', 'om-certifikatet']]) {
+          try { data = await loadProduct(type); found = kind; break; } catch (e) {}
         }
-        if (!data) data = await loadStock();
+        if (!data) { data = await loadStock(); found = 'om-aktien'; }
       } else if (view.kind === 'om-warranten') data = await loadProduct('warrant');
       else if (view.kind === 'om-certifikatet') data = await loadProduct('certificate');
       else data = await loadStock();
       if (key !== current || mine !== seq) return;
+      if (found) view.kind = found;
       last = data;
       draw();
     } catch (err) {
@@ -194,7 +198,7 @@
       get(view.kind === 'om-indexet' ? `market-index/${view.id}` : `market-guide/stock/${view.id}`),
       w('long'), w('short'), c('long'), c('short'),
     ]);
-    return { type: 'stock', s, w: [...wl, ...ws], c: [...cl, ...cs], capped: [wl, ws, cl, cs].some((a) => a.length >= LIMIT), issuer };
+    return { type: 'stock', s, w: [...wl, ...ws], c: [...cl, ...cs], capped: [wl, ws, cl, cs].some((a) => a.length >= LIMIT) };
   }
 
   function draw() {
@@ -224,7 +228,7 @@
         <div><dt>Financing level</dt><dd>${num(fin, 2)} ${esc(ccy)}</dd></div>
       </dl>
       <div class="stop">
-        <div class="row"><span>Distance to stop</span><b class="${Math.abs(toStop) < 5 ? 'red' : Math.abs(toStop) < 10 ? 'amber' : ''}">${pct(toStop, 1)}</b></div>
+        <div class="row"><span>Distance to stop</span><b class="${toStop == null ? '' : Math.abs(toStop) < 5 ? 'red' : Math.abs(toStop) < 10 ? 'amber' : ''}">${pct(toStop, 1)}</b></div>
         <div class="bar"><i style="width:${(room * 100).toFixed(1)}%"></i></div>
         <p class="muted">Stopped out if ${esc(shortName(u))} ${long ? 'falls' : 'rises'} to ${num(stop, 2)}.</p>
       </div>
@@ -241,7 +245,7 @@
   let model = null;
   function showCalc(m) {
     model = m;
-    if (calc.dataset.id !== m.id) {
+    if (calc.dataset.id !== String(m.id)) {
       calc.dataset.id = m.id;
       calc.innerHTML = `
         <div class="row"><b>Plan a trade</b>
@@ -254,54 +258,51 @@
       const key = 'calc:' + m.id;
       chrome.storage.local.get({ [key]: null }, (s) => {
         const v = s[key];
+        if (calc.dataset.id !== String(m.id)) return; // moved on to another product meanwhile
         if (v) { calc.unit = v.unit || 'u'; for (const f of ['buy', 'sell', 'amount']) calc.querySelector(`[data-k="${f}"]`).value = v[f] || ''; }
         updateCalc();
-      });
-      calc.addEventListener('input', () => {
-        const v = { unit: calc.unit };
-        for (const f of ['buy', 'sell', 'amount']) v[f] = calc.querySelector(`[data-k="${f}"]`).value;
-        chrome.storage.local.set({ [key]: v });
-        updateCalc();
-      });
-      calc.addEventListener('click', (e) => {
-        const b = e.target.closest('[data-unit]');
-        if (!b || b.dataset.unit === calc.unit) return;
-        // Switching units converts what is typed, so the plan stays the same.
-        // Buy sits at the ask and sell at the bid, so the spread goes along with the conversion.
-        for (const [f, sign] of [['buy', 1], ['sell', -1]]) {
-          const el = calc.querySelector(`[data-k="${f}"]`), x = parse(el.value);
-          if (x == null) continue;
-          const v = b.dataset.unit === 'p' ? priceAt(x) + sign * model.half : levelAt(x - sign * model.half);
-          el.value = String(+v.toFixed(b.dataset.unit === 'p' ? (v < 1 ? 3 : 2) : lvlDec(v)));
-        }
-        calc.unit = b.dataset.unit;
-        calc.dispatchEvent(new Event('input'));
       });
     }
     calc.hidden = false;
     updateCalc();
   }
+  // Attached once: the box is reused for every product, so the key comes from the product shown now.
+  calc.addEventListener('input', () => {
+    const v = { unit: calc.unit };
+    for (const f of ['buy', 'sell', 'amount']) v[f] = calc.querySelector(`[data-k="${f}"]`).value;
+    chrome.storage.local.set({ ['calc:' + model.id]: v });
+    updateCalc();
+  });
+  calc.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-unit]');
+    if (!b || b.dataset.unit === calc.unit) return;
+    // Switching units converts what is typed, so the plan stays the same.
+    // Buy sits at the ask and sell at the bid, so the spread goes along with the conversion.
+    for (const [f, sign] of [['buy', 1], ['sell', -1]]) {
+      const el = calc.querySelector(`[data-k="${f}"]`), x = parse(el.value);
+      if (x == null) continue;
+      const v = b.dataset.unit === 'p' ? priceAt(model, x) + sign * model.half : levelAt(model, x - sign * model.half);
+      el.value = String(+v.toFixed(b.dataset.unit === 'p' ? (v < 1 ? 3 : 2) : lvlDec(v)));
+    }
+    calc.unit = b.dataset.unit;
+    calc.dispatchEvent(new Event('input'));
+  });
   const parse = (s) => { const x = parseFloat(String(s || '').replace(/\s/g, '').replace(',', '.')); return isFinite(x) ? x : null; };
-  // A mini: price = |level − financing| / parity × fx. A 1× tracker: price = k × level, no stop.
-  const priceAt = (u) => (model.k ? u * model.k : Math.max(0, (model.long ? u - model.fin : model.fin - u) / model.parity * model.fx));
-  const levelAt = (p) => (model.k ? p / model.k : model.long ? model.fin + (p * model.parity) / model.fx : model.fin - (p * model.parity) / model.fx);
-  const stopped = (u) => (model.k ? false : model.long ? u <= model.stop : u >= model.stop);
   const lvlDec = (v) => (v < 1 ? 4 : v < 100 ? 3 : 2);
   function updateCalc() {
     if (!model) return;
     const m = model, unitU = calc.unit === 'u';
     calc.querySelectorAll('[data-unit]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.unit === calc.unit)));
     calc.querySelector('[data-unit="u"]').textContent = m.ticker;
-    calc.querySelector('[data-unit="p"]').textContent = 'SEK';
     for (const f of ['buy', 'sell']) calc.querySelector(`[data-k="${f}"]`).placeholder = unitU ? `${m.ticker} ${m.k ? 'price' : 'level'}` : m.k ? 'Tracker price' : 'Mini price';
     const out = (f, html) => { calc.querySelector(`[data-o="${f}"]`).innerHTML = html; };
     // Buying pays the ask, selling gets the bid: half the spread either side of the model price.
     const side = (f, sign) => {
       const x = parse(calc.querySelector(`[data-k="${f}"]`).value);
       if (x == null) { out(f, ''); return null; }
-      const u = unitU ? x : levelAt(x);
-      if (stopped(u)) { out(f, '<span class="red">stopped out</span>'); return null; }
-      const p = unitU ? priceAt(u) + sign * m.half : x;
+      const u = unitU ? x : levelAt(m, x);
+      if (stopped(m, u)) { out(f, '<span class="red">stopped out</span>'); return null; }
+      const p = unitU ? priceAt(m, u) + sign * m.half : x;
       const move = ((u - m.spot) / m.spot) * 100;
       out(f, unitU
         ? `<b>${num(p, p < 1 ? 3 : 2)}</b> SEK <span class="muted">${pct(move, 1)}</span>`
@@ -342,7 +343,9 @@
     // The market maker's live quote is empty outside trading hours; fall back to the plain bid/ask then.
     const mm = q.marketMakerQuote;
     const now = mid(mm && mm.currentBuyPrice && mm.currentSellPrice ? { buy: mm.currentBuyPrice, sell: mm.currentSellPrice } : q);
-    const actual = mmClose && now ? (now / mmClose - 1) * 100 : null;
+    // Selling gets the bid, so compare the bid, not the mid.
+    const bid = (mm && mm.currentBuyPrice) || q.buy;
+    const actual = mmClose && bid ? (bid / mmClose - 1) * 100 : null;
     const h = d.historicalClosingPrices || {};
     const perf = (p) => (p && now ? pct((now / p - 1) * 100, 0) : '–');
     // A 1× crypto tracker follows the coin: k = tracker price / coin price at the time of the quote.
@@ -356,7 +359,7 @@
       ${hasUnder ? underlyingRow(u, spot, chart) : ''}
       ${coin ? `<div class="under">
         <div class="row"><span>${esc(coin.pair)} <span class="muted small">live, Binance</span></span><span><b>${num(coin.now, lvlDec(coin.now))}</b> USD</span></div>
-        <div class="row small"><span class="muted">Tracker worth now</span><span><b>${num(worth, worth < 1 ? 3 : 2)}</b> SEK <span class="${drift >= 0 ? 'green' : 'red'}" title="RUNE's move since the tracker's last quote">${pct(drift, 1)}</span></span></div>
+        <div class="row small"><span class="muted">Tracker worth now</span><span><b>${num(worth, worth < 1 ? 3 : 2)}</b> SEK <span class="${drift >= 0 ? 'green' : 'red'}" title="${esc(coin.sym)}'s move since the tracker's last quote">${pct(drift, 1)}</span></span></div>
       </div>` : ''}
       <dl class="grid">
         <div><dt>Leverage</dt><dd class="big">${num(L, L % 1 ? 1 : 0)}×</dd></div>
@@ -382,16 +385,14 @@
   }
 
   // ----- stock page: AVA products on it -----
-  function drawStock({ s, w, c, capped, issuer }) {
+  function drawStock({ s, w, c, capped }) {
     const sq = s.quote || {};
     const spot = mid(sq);
     // A mini's own underlying level, solved from Avanza's leverage. Gold minis run on spot or on a
     // future, so when that level is far from the page's price, trust the product over the page.
     const own = (x) => {
-      const L = x.leverage, f = x.financingLevel;
-      if (!L || f == null) return spot;
-      const u = x.direction === 'short' ? (L * f) / (L + 1) : L > 1 ? (L * f) / (L - 1) : spot;
-      return spot && Math.abs(u / spot - 1) < 0.03 ? spot : u;
+      const u = x.leverage && x.financingLevel != null ? ownLevel(x.leverage, x.financingLevel, x.direction === 'short') : null;
+      return u == null || (spot && Math.abs(u / spot - 1) < 0.03) ? spot : u;
     };
     const ava = (x) => /morgan stanley/i.test(x.issuer || '');
     const keep = (x) => x.buyPrice && (state.issuer === 'all' || ava(x));

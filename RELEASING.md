@@ -17,7 +17,7 @@ People install Leverage Lens from GitHub and the add-on stores, so `main` always
 
 ## Checklist
 
-1. **Test** in Chrome and Firefox, logged in and logged out:
+1. **Test** the maths with `node --test`, then in Chrome and Firefox, logged in and logged out:
    - a mini future, including Plan a trade (MU and SEK)
    - a BULL/BEAR certificate, during and after trading hours
    - a stock page with every filter and sort button
@@ -26,7 +26,7 @@ People install Leverage Lens from GitHub and the add-on stores, so `main` always
 2. **Version:** set `"version"` in `manifest.json`.
 3. **Changelog:** rename **Not released yet** to the version and today's date, and start an empty **Not released yet** above it.
 4. **Merge** `dev` into `main` and push.
-5. **Zips:**
+5. **Zips** (with `math.js`, without `tests/`):
    - `dist/leverage-lens.zip` with a `leverage-lens/` folder inside, for GitHub
    - `dist/store/leverage-lens-store.zip` with `manifest.json` at the top, for the stores
 6. **GitHub Release:** tag `vX.Y.Z`, paste that version's changelog entry, and attach `leverage-lens.zip`.

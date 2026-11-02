@@ -12,6 +12,7 @@
         "https://www.avanza.se/*"
       ],
       "js": [
+        "math.js",
         "overlay.js"
       ],
       "run_at": "document_idle"

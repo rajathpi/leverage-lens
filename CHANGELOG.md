@@ -9,6 +9,10 @@ Newest version first. Each version is also on the [Releases](../../releases) pag
 - Crypto trackers (Valour and similar): the coin's live price from Binance (e.g. RUNE/USDT), what the tracker is worth right now given the coin's move since Avanza's last quote (useful on evenings and weekends), and **Plan a trade** in the coin's price: "buy when RUNE hits 0.50, sell at 0.70" gives the tracker price at each level and your result.
 - Every 1× tracker with a quoted underlying (e.g. Valour Bitcoin on BTC/USD) also gets Plan a trade.
 - Long underlying codes like "XXR-BTCUSD-SPOT" now show as their name ("BTC/USD").
+- Fixed: a plan typed in Plan a trade could overwrite the plans you had saved on other products.
+- Fixed: "Bid vs last close" on BULL/BEAR and tracker pages now really uses the bid, the price you'd get if you sold. It used the middle of bid and ask.
+- The card catches up as soon as you come back to the tab, instead of up to 30 seconds later.
+- The order page updates faster, and crypto trackers name the right coin when you hover the coin's move.
 
 ## 0.1.2 — 27 Oct 2026
 
